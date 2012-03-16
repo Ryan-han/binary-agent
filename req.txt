@@ -1,0 +1,63 @@
+binary-agent 
+- 특정 디렉토리에 저장되는 FIN파일을 Hadoop의 특정 디렉토리 및의 하위 디렉토리에 분산하 저장한다.
+- 특정 디렉토리에 sub directory가 생기는지 체크한다.
+설정 내용.
+hdfs 
+디렉토리
+
+binary-collector
+- 부팅 되면서 hadoop의 특정 디렉토리에 자신의 디렉토리를 만든다.
+- 자신의 디렉토리에 저장되는 파일을 꺼내 로컬 파일 시스템에 저장한다.
+================================================================================
+
+
+FTP/SFTP VS HDFS
+HDFS 
+* HDFS의 각 client 디렉토리에 데이타를 전송하는 데몬(Agent)과,
+  HDFS의 각 Directory에서 데이터를 읽어갈 데몬(Collector)이 필요함.
+* Agent 데몬은 주기적으로(옵션) FIN 파일이 생기는지 체크하여 HDFS의 각 Collector디렉토리에 분산하여 데이터를 전송함.
+* Agent 데이타를 전송후 Retain(Rename)함.
+* Collectors는 데이터를 가져간후 HDFS내에 원본 데이타를 백업함.
+* Throughput Data size(677M)
+Agent 13906 ms, Collector 7319 ms
+
+장점
+HDFS를 Queue로 사용하기 때문에 Collector가 동적으로 생성 될 수 있다.
+단점 
+전송된 데이타 백업 Agent(Local Disk)단과 Collector(hdfs)모두 존재한다.
+
+FTP / SFTP 
+* 주기적으로(옵션) FIN 파일이 생기는지 체크하여 있으면 FTP/SFTP(옵션) Protocol로 데이타 전송
+* 원본 파일 retain (rename/delete)
+* 데몬 장애시 Restar해야만 다시 보냄.
+* 등록된 각 Cltient(FTP서버) 데이타를 분산하여 전송함. 
+* FTP서버 장애시 등록된 다른 FTP로 데이터를 전송함.
+* retain이 rename일 경우 retain directory에 날짜 / 시간 별로 저장.
+* Backup (retain) 데이타 관리
+* Throughput Data size(677M)
+FTP 6799 ms, SFTP 33131 ms
+
+장점
+데이타 전송 속도가 빠르다.
+client를 ftp를 사용하기 때문에 단순하다.
+ 
+단점
+client 동적 추가 - 구현 필요.
+
+================================================================================
+
+* 가비지 데이타 처리
+* 데몬 상태 관리.
+	coordinator를 이용한 상태 관리 membership, configStore
+	- agent daemon
+	  start시 membership에 등록하고 config에 name, START로 한다.
+	  stop시  config에 name, STOP으로 설정한다.
+	  retry상태일때 WARNING로 변경한다.
+	
+	  membership을 listen하고 있다가 onMemberLeft 이벤트시에 config를 조회해서 
+	  START가 아니면 ERROR로 설정한다.
+	  
+	  
+* CLI Tool
+
+

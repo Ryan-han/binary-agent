@@ -1,0 +1,295 @@
+#!/usr/bin/env /bin/bash
+# Licensed to Cloudera, Inc. under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  Cloudera, Inc. licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+
+##
+# This script runs core flume commands.  It sets up the proper jar
+# library paths and defaults to a java class name.
+#
+# TODO (jon) This assumes CLASSPATH has $JAVA_HOME/lib/tools.jar in it
+# (jetty requires this to compile jsps.  In future will precompile
+# jsps to make this requirement go away.)
+
+function usage {
+  echo "usage: run (start|stop) (agent|collector)"
+  exit -1
+}
+
+CMDPATH=`dirname $0`
+
+# This is to make CMDPATH correct if you go to the bin directory
+# and run ./run <command>.
+pushd $CMDPATH >/dev/null
+CMDPATH=`pwd`
+popd >/dev/null
+
+# name of path
+CMDPATH=`dirname $CMDPATH`
+
+AGENT=$CMDPATH/bin/run
+
+MASTERPID=${AGENT_PID_DIR:="/tmp"}/agentmaster.pid
+
+startStop="$1"
+CMD="$2"
+
+echo "$startStop"
+echo "$CMD"
+if [ -z "$CMD" ]; then
+    usage
+fi
+
+cygwin=false
+pathsep=":"
+case "`uname`" in
+    CYGWIN*)
+        cygwin=true
+        pathsep=";"
+        ;;
+esac
+
+function append_jars_onto_classpath() {
+    local JARS
+    JARS=`find $1/*.jar 2> /dev/null || true`
+    for i in $JARS; do
+        if [ -n "$CLASSPATH" ]; then
+            CLASSPATH=${CLASSPATH}${pathsep}${i}
+        else
+            CLASSPATH=${i}
+        fi
+    done
+}
+
+# name of script
+BINPATH=`dirname $0`
+
+if [ -f "${BINPATH}/env.sh" ]; then
+    source "$BINPATH/env.sh"
+fi
+
+if [ -z "$AGENT_HOME" ]; then
+    export AGENT_HOME="$CMDPATH"
+fi
+
+JOPTS="-Dagent.log.dir=${AGENT_LOG_DIR:-${AGENT_HOME}/logs} "
+JOPTS="$JOPTS -Dagent.log.file=${AGENT_LOGFILE:-agent.log} "
+JOPTS="$JOPTS -Dagent.root.logger=${AGENT_ROOT_LOGGER:-INFO,console} "
+
+
+if [ "$cygwin" == false ] ; then
+  # unix and "unix-like" setup
+  # pick user override, or check for dev env, or check for install
+  if [ -n "$AGENT_CONF_DIR" ]; then
+      true
+  elif [ -e "./conf/agent-conf.xml" ]; then
+      export AGENT_CONF_DIR="./conf"
+  elif [ -e "/etc/agent/conf/agent-conf.xml" ]; then
+      export AGENT_CONF_DIR="/etc/agent/conf"
+  else
+      echo "AGENT_CONF_DIR cannot be determined, please set explicitly"
+      exit -1
+  fi
+  # conf dir first in the class path in order to ensure we get agent log4j.properties
+  CLASSPATH="$AGENT_CONF_DIR"
+
+  if [ -n "$AGENT_CLASSPATH" ]; then
+      CLASSPATH="${CLASSPATH}:${AGENT_CLASSPATH}"
+  fi
+
+  # put hadoop conf dir in classpath to include Hadoop
+  # core-site.xml/hdfs-site.xml
+  if [ -n "${HADOOP_CONF_DIR}" ]; then
+      CLASSPATH="${CLASSPATH}:${HADOOP_CONF_DIR}" 
+  elif [ -n "${HADOOP_HOME}" ] ; then
+      CLASSPATH="${CLASSPATH}:${HADOOP_HOME}/conf"
+  elif [ -e "/usr/lib/hadoop/conf" ] ; then
+      # if neither is present see if the CDH dir exists
+      CLASSPATH="${CLASSPATH}:/usr/lib/hadoop-0.20/conf";
+  fi  # otherwise give up
+
+  # try to load the hadoop core jars
+  HADOOP_CORE_FOUND=false
+  while true; do
+      if [ -n "$HADOOP_HOME" ]; then
+	  HADCOREJARS=`find ${HADOOP_HOME}/hadoop-core*.jar || find ${HADOOP_HOME}/lib/hadoop-core*.jar ||  true`
+	  if [ -n "$HADCOREJARS" ]; then
+              HADOOP_CORE_FOUND=true
+              CLASSPATH="$CLASSPATH:${HADCOREJARS}"
+	      break;
+	  fi
+      fi   
+
+      HADCOREJARS=`find ./lib/hadoop-core*.jar 2> /dev/null || true`
+      if [ -n "$HADCOREJARS" ]; then
+          # if this is the dev environment then hadoop jar will
+          # get added as part of ./lib (below)
+          break
+      fi
+
+      # core jars may be missing, we'll check for this below
+      break
+  done
+
+  JOPTS="$JOPTS -Djava.library.path=$CMDPATH/lib:$LD_LIBRARY_PATH:$JAVA_LIBRARY_PATH"
+
+  append_jars_onto_classpath "$CMDPATH/lib"
+  append_jars_onto_classpath "$CMDPATH/libtest"
+
+  CLASSPATH="${CLASSPATH}:$JAVA_HOME/lib/tools.jar"
+
+  if [ "$AGENT_DEVMODE" == true ] ; then
+    # allow Jetty to compile servlets in dev mode
+      append_jars_onto_classpath "$CMDPATH/libbuild"
+  fi
+
+
+  CLASSPATH="$CLASSPATH:$CMDPATH/build/classes"
+  append_jars_onto_classpath "$CMDPATH/build"
+  append_jars_onto_classpath "${AGENT_HOME}"
+  
+
+else
+  # windows with cygwin
+  JOPTS="$JOPTS -Djava.library.path=`cygpath -d $CMDPATH/lib` "
+
+  CLASSPATH="$JAVA_HOME/lib/tools.jar"
+
+  append_jars_onto_classpath "$CMDPATH/lib"
+  append_jars_onto_classpath "$CMDPATH/libtest"
+
+  if [ "$AGENT_DEVMODE" == true ] ; then
+    # allow Jetty to compile servlets in dev mode
+    append_jars_onto_classpath "$CMDPATH/libbuild"
+  fi
+
+fi
+
+export CLASSPATH
+
+# if we found hadoop core already then no need to test
+# however if we're not certain then check the classpath
+if [ $HADOOP_CORE_FOUND == false ]; then
+    LENCP=${#CLASSPATH}
+    # replace hadoop-core*.jar with 0 len string
+    HADTEST=${CLASSPATH/hadoop-core*.jar/}
+    HADTESTLEN=${#HADTEST}
+    # lengths should be different if jars are in classpath
+    if [ $LENCP -eq $HADTESTLEN ]; then
+        echo "HADOOP_HOME is unset, hadoop jars may not be added to classpath"
+    fi
+fi
+
+if [ -f "${HADOOP_CONF_DIR}/hadoop-env.sh" ]; then
+  . "${HADOOP_CONF_DIR}/hadoop-env.sh"
+fi
+
+shift
+
+# pass properties to allow java program to drop a pid file. java must
+# now be exec'ed so the pid remains the same as the script.  In the
+# mastercase, we actually only drop the pid of the watchdog.  The
+# watchdog kills the watched child process if killed cleanly.
+WATCHDOG_OPTS="-Dpid=$$ -Dpidfile="
+WATCHDOG_CLASS=com.cloudera.agent.watchdog.FlumeWatchdog
+
+MASTER_WATCHDOG="java ${JOPTS} -Dpid=$$ -Dpidfile=$MASTERPID $WATCHDOG_CLASS"
+MASTERI_WATCHDOG="java ${JOPTS} -Dpid=$$ -Dpidfile=$MASTERPID  $WATCHDOG_CLASS"
+
+NODE_WATCHDOG="java ${JOPTS} -Dpid=$$ -Dpidfile=${AGENT_PID_DIR}/agentnode-$$.pid $WATCHDOG_CLASS"
+NODEI_WATCHDOG="java ${JOPTS} -Dfwdstdin=true -Dpid=$$ -Dpidfile=${AGENT_PID_DIR}/agentnode-$$.pid $WATCHDOG_CLASS"
+
+if [ -n "$AGENT_VERBOSE" ]; then
+    if [ -n "$AGENT_VERBOSE_JAVA" ]; then
+        JOPTS="$JOPTS -verbose "
+    fi
+    echo "$CLASSPATH"
+    set -x
+fi
+
+if [ "$CMD" = "-h" ] ; then
+  usage
+elif [ "$CMD" = "agent" ] ; then
+  exec java $JOPTS $UOPTS  com.nexr.platform.collector.binary.Agent "$@"
+
+elif [ "$CMD" = "collector" ] ; then
+  exec java $JOPTS $UOPTS  com.nexr.platform.collector.binary.Collector "$@"
+  
+elif [ "$CMD" = "node" ] ; then
+  # there can be multiple nodes.
+  exec $NODE_WATCHDOG java $JOPTS $UOPTS com.cloudera.agent.agent.FlumeNode "$@"
+elif [ "$CMD" = "nodei" ] ; then
+  # there can be multiple nodes.
+  exec $NODEI_WATCHDOG java $JOPTS $UOPTS com.cloudera.agent.agent.FlumeNode "$@"
+elif [ "$CMD" = "master" ] ; then
+  # only allow one master
+  if [ -f $MASTERPID ] ; then
+    PID=`cat $MASTERPID`
+    echo "Master already running, pid=$PID"
+    exit -1
+  fi
+  exec $MASTER_WATCHDOG java $JOPTS $UOPTS com.cloudera.agent.master.FlumeMaster "$@"
+elif [ "$CMD" = "node_nowatch" ] ; then
+  exec java $JOPTS $UOPTS com.cloudera.agent.agent.FlumeNode "$@"
+elif [ "$CMD" = "master_nowatch" ] ; then
+  exec java $JOPTS $UOPTS com.cloudera.agent.master.FlumeMaster "$@"
+elif [ "$CMD" = "watchdog" ] ; then
+  exec java $UOPTS $WATCHDOG_CLASS "$@"
+elif [ "$CMD" = "version" ] ; then
+  exec java $JOPTS $UOPTS com.cloudera.agent.VersionInfo
+elif [ "$CMD" = "unit" ] ; then
+  exec $AGENT junit.textui.TestRunner "$@"
+elif [ "$CMD" = "unit4" ] ; then
+  exec $AGENT org.junit.runner.JUnitCore "$@"
+elif [ "$CMD" = "dump" -o "$CMD" = "source" ] ; then
+  # this has no error checking.  be careful!
+  if [ -z "$2" ] ; then
+    CONSOLE="console"
+  else
+    CONSOLE="console(\"$2\")"
+  fi
+  exec java $JOPTS $UOPTS com.cloudera.agent.agent.FlumeNode \
+      -1 -s -n dump -c "dump: $1 | $CONSOLE; "
+elif [ "$CMD" = "dumplog" ] ; then
+  # this has no error checking.  be careful!
+  exec java $JOPTS $UOPTS com.cloudera.agent.agent.FlumeNode \
+      -1 -s -n dump -c "dump: seqfile(\"$1\") | console(\"avrojson\"); "
+elif [ "$CMD" = "sink" ];  then
+  exec java $JOPTS $UOPTS com.cloudera.agent.agent.FlumeNode \
+      -1 -s -n dump -c "dump: console | $1; "
+elif [ "$CMD" = "shell" ] ; then
+  exec java $JOPTS $UOPTS com.cloudera.agent.util.FlumeShell "$@"
+elif [ "$CMD" = "killmaster" ] ; then
+  if [ -f $MASTERPID ] ; then
+    PID=`cat $MASTERPID`
+    echo "Killing FlumeMaster (pid=$PID)"
+    if kill $PID ; then
+      echo "FlumeMaster stopped"
+    else
+     echo "FlumeMaster (pid=$PID) could not be stopped"
+    fi
+    rm -f $MASTERPID
+  fi
+elif [ "$CMD" = "class" ]; then
+  # Just do a java class with the environment setup
+  exec java $JOPTS $UOPTS "$@"
+elif [ "$CMD" = "classpath" ];  then
+  echo $CLASSPATH
+else
+  usage
+fi
+

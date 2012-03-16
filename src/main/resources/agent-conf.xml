@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl"  href="configuration.xsl"?>
+
+
+<configuration>
+  <property>
+    <name>agent.dfs.path</name>
+    <value>hdfs://wolf105:30003/ryan/agent</value>
+  </property>
+
+  <property>
+    <name>agent.source.path</name>
+    <value>/srv/ryan/data</value>
+  </property>
+
+  <property>
+    <name>agent.source.suffix</name>
+    <value></value>
+  </property>
+  
+  <property>
+    <name>dir.check.period</name>
+    <value>5000</value>
+  </property>
+  
+  <property>
+    <name>source.check.time</name>
+    <value>5000</value>
+  </property>
+  
+  <property>
+    <name>copy.period</name>
+    <value>5000</value>
+  </property>
+    
+   <property>
+    <name>collector.dfs.path</name>
+    <value>hdfs://wolf105:30003/ryan/agent/agent1</value>
+  </property>
+  
+   <property>
+    <name>collector.backup.path</name>
+    <value>hdfs://wolf105:30003/ryan/backup</value>
+  </property>
+  
+  <property>
+    <name>collector.target.path</name>
+    <value>/srv/ryan/data</value>
+  </property>
+
+</configuration>
