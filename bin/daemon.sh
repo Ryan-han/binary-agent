@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-usage="Usage: $0 (start|stop) (agent|collector) "
+usage="Usage: $0 (start|stop) (ftp) "
 
 # if no args specified, show usage
 if [ $# -le 1 ]; then

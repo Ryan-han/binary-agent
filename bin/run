@@ -26,7 +26,7 @@
 # jsps to make this requirement go away.)
 
 function usage {
-  echo "usage: run (start|stop) (agent|collector)"
+  echo "usage: run (start|stop) (ftp)"
   exit -1
 }
 
@@ -43,7 +43,6 @@ CMDPATH=`dirname $CMDPATH`
 
 AGENT=$CMDPATH/bin/run
 
-MASTERPID=${AGENT_PID_DIR:="/tmp"}/agentmaster.pid
 
 startStop="$1"
 CMD="$2"
@@ -197,18 +196,7 @@ fi
 
 shift
 
-# pass properties to allow java program to drop a pid file. java must
-# now be exec'ed so the pid remains the same as the script.  In the
-# mastercase, we actually only drop the pid of the watchdog.  The
-# watchdog kills the watched child process if killed cleanly.
-WATCHDOG_OPTS="-Dpid=$$ -Dpidfile="
-WATCHDOG_CLASS=com.cloudera.agent.watchdog.FlumeWatchdog
 
-MASTER_WATCHDOG="java ${JOPTS} -Dpid=$$ -Dpidfile=$MASTERPID $WATCHDOG_CLASS"
-MASTERI_WATCHDOG="java ${JOPTS} -Dpid=$$ -Dpidfile=$MASTERPID  $WATCHDOG_CLASS"
-
-NODE_WATCHDOG="java ${JOPTS} -Dpid=$$ -Dpidfile=${AGENT_PID_DIR}/agentnode-$$.pid $WATCHDOG_CLASS"
-NODEI_WATCHDOG="java ${JOPTS} -Dfwdstdin=true -Dpid=$$ -Dpidfile=${AGENT_PID_DIR}/agentnode-$$.pid $WATCHDOG_CLASS"
 
 if [ -n "$AGENT_VERBOSE" ]; then
     if [ -n "$AGENT_VERBOSE_JAVA" ]; then
@@ -220,79 +208,11 @@ fi
 
 if [ "$CMD" = "-h" ] ; then
   usage
-elif [ "$CMD" = "agent" ] ; then
-  exec java $JOPTS $UOPTS  com.nexr.platform.collector.binary.Agent "$@"
 
-elif [ "$CMD" = "collector" ] ; then
-  exec java $JOPTS $UOPTS  com.nexr.platform.collector.binary.Collector "$@"
-  
 elif [ "$CMD" = "ftp" ] ; then
 
   exec java $JOPTS $UOPTS  com.nexr.platform.collector.sftp.FTPCollector "$startStop" "$@"
 
-elif [ "$CMD" = "ftpMaster" ] ; then
-  exec java $JOPTS $UOPTS  com.nexr.platform.collector.sftp.FTPCollector "$startStop" "$@"
-
-elif [ "$CMD" = "node" ] ; then
-  # there can be multiple nodes.
-  exec $NODE_WATCHDOG java $JOPTS $UOPTS com.cloudera.agent.agent.FlumeNode "$@"
-elif [ "$CMD" = "nodei" ] ; then
-  # there can be multiple nodes.
-  exec $NODEI_WATCHDOG java $JOPTS $UOPTS com.cloudera.agent.agent.FlumeNode "$@"
-elif [ "$CMD" = "master" ] ; then
-  # only allow one master
-  if [ -f $MASTERPID ] ; then
-    PID=`cat $MASTERPID`
-    echo "Master already running, pid=$PID"
-    exit -1
-  fi
-  exec $MASTER_WATCHDOG java $JOPTS $UOPTS com.cloudera.agent.master.FlumeMaster "$@"
-elif [ "$CMD" = "node_nowatch" ] ; then
-  exec java $JOPTS $UOPTS com.cloudera.agent.agent.FlumeNode "$@"
-elif [ "$CMD" = "master_nowatch" ] ; then
-  exec java $JOPTS $UOPTS com.cloudera.agent.master.FlumeMaster "$@"
-elif [ "$CMD" = "watchdog" ] ; then
-  exec java $UOPTS $WATCHDOG_CLASS "$@"
-elif [ "$CMD" = "version" ] ; then
-  exec java $JOPTS $UOPTS com.cloudera.agent.VersionInfo
-elif [ "$CMD" = "unit" ] ; then
-  exec $AGENT junit.textui.TestRunner "$@"
-elif [ "$CMD" = "unit4" ] ; then
-  exec $AGENT org.junit.runner.JUnitCore "$@"
-elif [ "$CMD" = "dump" -o "$CMD" = "source" ] ; then
-  # this has no error checking.  be careful!
-  if [ -z "$2" ] ; then
-    CONSOLE="console"
-  else
-    CONSOLE="console(\"$2\")"
-  fi
-  exec java $JOPTS $UOPTS com.cloudera.agent.agent.FlumeNode \
-      -1 -s -n dump -c "dump: $1 | $CONSOLE; "
-elif [ "$CMD" = "dumplog" ] ; then
-  # this has no error checking.  be careful!
-  exec java $JOPTS $UOPTS com.cloudera.agent.agent.FlumeNode \
-      -1 -s -n dump -c "dump: seqfile(\"$1\") | console(\"avrojson\"); "
-elif [ "$CMD" = "sink" ];  then
-  exec java $JOPTS $UOPTS com.cloudera.agent.agent.FlumeNode \
-      -1 -s -n dump -c "dump: console | $1; "
-elif [ "$CMD" = "shell" ] ; then
-  exec java $JOPTS $UOPTS com.cloudera.agent.util.FlumeShell "$@"
-elif [ "$CMD" = "killmaster" ] ; then
-  if [ -f $MASTERPID ] ; then
-    PID=`cat $MASTERPID`
-    echo "Killing FlumeMaster (pid=$PID)"
-    if kill $PID ; then
-      echo "FlumeMaster stopped"
-    else
-     echo "FlumeMaster (pid=$PID) could not be stopped"
-    fi
-    rm -f $MASTERPID
-  fi
-elif [ "$CMD" = "class" ]; then
-  # Just do a java class with the environment setup
-  exec java $JOPTS $UOPTS "$@"
-elif [ "$CMD" = "classpath" ];  then
-  echo $CLASSPATH
 else
   usage
 fi
