@@ -248,8 +248,8 @@ public class FTPCollector {
 				f.setControlEncoding("UTF-8");
 				f.connect(agentInfo.getHost());
 				f.login(agentInfo.getUser(), agentInfo.getPasswd());
-				f.enterLocalPassiveMode(); // Passive Mode 접속일때
-				f.changeWorkingDirectory(agentInfo.getTargetPath()); // 작업 디렉토리 변경
+				f.enterLocalPassiveMode();
+				f.changeWorkingDirectory(agentInfo.getTargetPath()); 
 				f.setFileType(FTP.BINARY_FILE_TYPE);
 
 				ftp = (FTPClient) f;
@@ -260,8 +260,8 @@ public class FTPCollector {
 		return ftp;
 	}
 
-	public void copyFiles(File dataFile, File finFile, String source, AgentInfo agentInfo)
-			throws SftpException, IOException, JSchException {
+	public void copyFiles(File dataFile, File finFile, String source,
+			AgentInfo agentInfo) throws SftpException, IOException, JSchException {
 		// .FIN이 없는 데이타 파일 복
 		String data = source.replace(sourceSuffix, copyFileSuffix);
 		String fin = source.substring(source.lastIndexOf("/") + 1, source.length());
@@ -272,8 +272,7 @@ public class FTPCollector {
 			ChannelSftp sftp = (ChannelSftp) getChannel(agentInfo);
 			sftp.cd(agentInfo.getTargetPath());
 			FileInputStream is = new FileInputStream(dataFile);
-			sftp.put(is,
-					data.substring(data.lastIndexOf("/") + 1, data.length()));
+			sftp.put(is, data.substring(data.lastIndexOf("/") + 1, data.length()));
 			is.close();
 			log.debug("Source " + data + " Agent " + agentInfo.getAgentName());
 			is = new FileInputStream(finFile);
@@ -330,8 +329,9 @@ public class FTPCollector {
 			while (true) {
 				if (sourceList.size() > 0 && agentList.size() > 0) {
 					for (String source : sourceList) {
-					
-						File dataFile = new File(source.replace(sourceSuffix, copyFileSuffix));
+
+						File dataFile = new File(source.replace(sourceSuffix,
+								copyFileSuffix));
 						File finFile = new File(source);
 
 						if (dataFile.exists() && finFile.exists()) {
