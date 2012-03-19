@@ -31,6 +31,7 @@ public class FTPCollector {
 	private static Logger log = Logger.getLogger(FTPCollector.class);
 	private static final String SOURCE_DIR = "sourceDir";
 	private static final String SOURCE_SUFFIX = "sourceSuffix";
+	private static final String COPY_FILE_SUFFIX = "copyFileSuffix";
 	private static final String SOURCE_CHECK_PERIOD = "sourceCheckPeriod";
 	private static final String COPY_PERIOD = "copyPeriod";
 
@@ -42,6 +43,7 @@ public class FTPCollector {
 	private static final String BACKOFF_MAX = "backoff.max";
 
 	private String sourceSuffix = null;
+	private String copyFileSuffix = null;
 	private File sourcePath;
 	private List<String> sourceList = new CopyOnWriteArrayList<String>();
 	private List<AgentInfo> agentList = new CopyOnWriteArrayList<AgentInfo>();
@@ -125,6 +127,12 @@ public class FTPCollector {
 							|| prop.getProperty(key).trim().length() > 0) {
 						sourceSuffix = prop.getProperty(key).trim();
 						log.info("Source suffix set " + prop.getProperty(key));
+					}
+				} else if (key.equals(COPY_FILE_SUFFIX)) {
+					if (prop.getProperty(key) != null
+							|| prop.getProperty(key).trim().length() > 0) {
+						copyFileSuffix = prop.getProperty(key).trim();
+						log.info("Copy file suffix set " + prop.getProperty(key));
 					}
 				} else if (key.equals(SOURCE_CHECK_PERIOD)) {
 					if (prop.getProperty(key) != null
@@ -252,39 +260,33 @@ public class FTPCollector {
 		return ftp;
 	}
 
-	public void copyFiles(File notFinFile, File finFile, String source, AgentInfo agentInfo)
+	public void copyFiles(File dataFile, File finFile, String source, AgentInfo agentInfo)
 			throws SftpException, IOException, JSchException {
 		// .FIN이 없는 데이타 파일 복
-		String notFin = source.substring(0, source.lastIndexOf("."));
-//		// .FIN file copy
+		String data = source.replace(sourceSuffix, copyFileSuffix);
 		String fin = source.substring(source.lastIndexOf("/") + 1, source.length());
-//
-//		File notFinFile = new File(notFin);
-//		File finFile = new File(source);
 
 		log.info("File Upload to " + agentInfo.toString());
 		if (getChannel(agentInfo) instanceof ChannelSftp) {
 
 			ChannelSftp sftp = (ChannelSftp) getChannel(agentInfo);
 			sftp.cd(agentInfo.getTargetPath());
-			FileInputStream is = new FileInputStream(notFinFile);
+			FileInputStream is = new FileInputStream(dataFile);
 			sftp.put(is,
-					notFin.substring(notFin.lastIndexOf("/") + 1, notFin.length()));
+					data.substring(data.lastIndexOf("/") + 1, data.length()));
 			is.close();
-			log.debug("Source " + notFin + " Agent " + agentInfo.getAgentName());
+			log.debug("Source " + data + " Agent " + agentInfo.getAgentName());
 			is = new FileInputStream(finFile);
 			sftp.put(is, fin);
 			is.close();
 			log.debug("Source " + source + " Agent " + agentInfo.getAgentName());
 		} else if (getChannel(agentInfo) instanceof FTPClient) {
 			FTPClient ftp = (FTPClient) getChannel(agentInfo);
-			// File notFinFile = new File(notFin);
-			// File finFile = new File(source);
 
-			FileInputStream fis = new FileInputStream(notFinFile);
-			ftp.storeFile(notFinFile.getName(), fis);
+			FileInputStream fis = new FileInputStream(dataFile);
+			ftp.storeFile(dataFile.getName(), fis);
 			fis.close();
-			log.debug("Source " + notFin + " Agent " + agentInfo.getAgentName());
+			log.debug("Source " + data + " Agent " + agentInfo.getAgentName());
 
 			fis = new FileInputStream(finFile);
 			ftp.storeFile(finFile.getName(), fis);
@@ -304,8 +306,7 @@ public class FTPCollector {
 			if (!retainSourcePath.exists()) {
 				retainSourcePath.mkdirs();
 			}
-
-			File file = new File(source.substring(0, source.lastIndexOf(".")));
+			File file = new File(source.replace(sourceSuffix, copyFileSuffix));
 			file.renameTo(new File(retainSourcePath, file.getName()));
 			file = new File(source);
 			file.renameTo(new File(retainSourcePath, file.getName()));
@@ -329,19 +330,18 @@ public class FTPCollector {
 			while (true) {
 				if (sourceList.size() > 0 && agentList.size() > 0) {
 					for (String source : sourceList) {
-						String notFin = source.substring(0, source.lastIndexOf("."));
-				
-						File notFinFile = new File(notFin);
+					
+						File dataFile = new File(source.replace(sourceSuffix, copyFileSuffix));
 						File finFile = new File(source);
 
-						if (notFinFile.exists() && finFile.exists()) {
+						if (dataFile.exists() && finFile.exists()) {
 							int retries = 0;
 							while (!copySuccess) {
 
 								int index = idxKey % agentList.size();
 								AgentInfo agentInfo = agentList.get(index);
 								try {
-									copyFiles(notFinFile, finFile, source, agentInfo);
+									copyFiles(dataFile, finFile, source, agentInfo);
 									copySuccess = true;
 								} catch (Exception e) {
 									// TODO Auto-generated catch block
