@@ -41,8 +41,6 @@ public class FTPCollector {
 	private static final String BACKOFF_CEILING = "backoff.ceiling";
 	private static final String BACKOFF_MAX = "backoff.max";
 
-	private static final String COLLECTOR_NAME = "collectorName";
-
 	private String sourceSuffix = null;
 	private File sourcePath;
 	private List<String> sourceList = new CopyOnWriteArrayList<String>();
@@ -66,8 +64,6 @@ public class FTPCollector {
 
 	long backoff_ceiling = 1000;
 	long backoff_max = 50;
-
-	String collectorName;
 
 	static FTPCollector ftpCollector;
 
@@ -169,14 +165,6 @@ public class FTPCollector {
 							sourceRetentionPath.mkdirs();
 						}
 						log.info("Retention Directory " + sourceRetentionDir);
-					}
-
-				} else if (key.equals(COLLECTOR_NAME)) {
-					if (prop.getProperty(key) != null
-							|| prop.getProperty(key).trim().length() > 0) {
-						collectorName = prop.getProperty(key).trim();
-
-						log.info("collectorName " + collectorName);
 					}
 
 				} else {

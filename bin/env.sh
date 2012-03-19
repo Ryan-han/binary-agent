@@ -20,7 +20,7 @@
 # Enviroment variables can be set here.
 
 export JAVA_HOME=/usr/share/java1.6
-export AGENT_HOME=/home/ryan/flume-1.1.0.1009
+export AGENT_HOME=/home/ryan/agent
 export AGENT_CONF_DIR=$AGENT_HOME/conf
 export AGENT_LOG_DIR=$AGENT_HOME/logs
 export AGENT_PID_DIR=$AGENT_HOME/pid

@@ -47,9 +47,6 @@ MASTERPID=${AGENT_PID_DIR:="/tmp"}/agentmaster.pid
 
 startStop="$1"
 CMD="$2"
-
-echo "$startStop"
-echo "$CMD"
 if [ -z "$CMD" ]; then
     usage
 fi
@@ -88,7 +85,7 @@ fi
 
 JOPTS="-Dagent.log.dir=${AGENT_LOG_DIR:-${AGENT_HOME}/logs} "
 JOPTS="$JOPTS -Dagent.log.file=${AGENT_LOGFILE:-agent.log} "
-JOPTS="$JOPTS -Dagent.root.logger=${AGENT_ROOT_LOGGER:-INFO,console} "
+JOPTS="$JOPTS -Dagent.root.logger=${AGENT_ROOT_LOGGER:-DEBUG,console} "
 
 
 if [ "$cygwin" == false ] ; then
@@ -229,6 +226,13 @@ elif [ "$CMD" = "agent" ] ; then
 elif [ "$CMD" = "collector" ] ; then
   exec java $JOPTS $UOPTS  com.nexr.platform.collector.binary.Collector "$@"
   
+elif [ "$CMD" = "ftp" ] ; then
+
+  exec java $JOPTS $UOPTS  com.nexr.platform.collector.sftp.FTPCollector "$startStop" "$@"
+
+elif [ "$CMD" = "ftpMaster" ] ; then
+  exec java $JOPTS $UOPTS  com.nexr.platform.collector.sftp.FTPCollector "$startStop" "$@"
+
 elif [ "$CMD" = "node" ] ; then
   # there can be multiple nodes.
   exec $NODE_WATCHDOG java $JOPTS $UOPTS com.cloudera.agent.agent.FlumeNode "$@"

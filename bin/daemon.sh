@@ -31,7 +31,6 @@ startStop=$1
 #shift
 command=$2
 #shift
-echo "$command"
 agent_rotate_log ()
 {
     log=$1;
@@ -99,7 +98,6 @@ case $startStop in
     ;;
           
   (stop)
-
     if [ -f $pid ]; then
       if kill -0 `cat $pid` > /dev/null 2>&1; then
         echo stopping $command
