@@ -84,7 +84,7 @@ fi
 
 JOPTS="-Dagent.log.dir=${AGENT_LOG_DIR:-${AGENT_HOME}/logs} "
 JOPTS="$JOPTS -Dagent.log.file=${AGENT_LOGFILE:-agent.log} "
-JOPTS="$JOPTS -Dagent.root.logger=${AGENT_ROOT_LOGGER:-DEBUG,console} "
+#JOPTS="$JOPTS -Dagent.root.logger=${AGENT_ROOT_LOGGER:DEBUG,console} "
 
 
 if [ "$cygwin" == false ] ; then
