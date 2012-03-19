@@ -54,7 +54,7 @@
 			<version>2.0</version>
 		</dependency>
 
-
+<!-- 
 		<dependency>
 			<groupId>org.apache.zookeeper</groupId>
 			<artifactId>zookeeper</artifactId>
@@ -81,6 +81,6 @@
 			<artifactId>ndap-coordinator</artifactId>
 			<version>${ndap.coordinator.version}</version>
 		</dependency>
-
+ -->
 	</dependencies>
 </project>
