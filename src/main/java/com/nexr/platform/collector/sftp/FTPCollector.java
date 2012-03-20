@@ -59,7 +59,7 @@ public class FTPCollector {
 	long sourceCheckPeriod = 5000;
 	long copyPeriod = 5000;
 
-	String sourceRetention = "rename";
+	String sourceRetention = "delete";
 	String sourceRetentionDir = null;
 	File sourceRetentionPath;
 	int sourceRetentionPeriod = -15;
@@ -79,11 +79,15 @@ public class FTPCollector {
 	public void start() {
 		sourceCheckThread = new SourceCheckThread();
 		copyThread = new CopyThread();
-		sourceRetainThread = new SourceRetainThread();
 
 		sourceCheckThread.start();
 		copyThread.start();
-		sourceRetainThread.start();
+
+		if (sourceRetention.equals("rename")) {
+			log.debug("Start sourceRetain Thread");
+			sourceRetainThread = new SourceRetainThread();
+			sourceRetainThread.start();
+		}
 
 	}
 
@@ -168,11 +172,13 @@ public class FTPCollector {
 							|| prop.getProperty(key).trim().length() > 0) {
 						sourceRetentionDir = prop.getProperty(key).trim();
 
-						sourceRetentionPath = new File(sourceRetentionDir);
-						if (!sourceRetentionPath.exists()) {
-							sourceRetentionPath.mkdirs();
+						if (sourceRetention.equals("rename")) {
+							sourceRetentionPath = new File(sourceRetentionDir);
+							if (!sourceRetentionPath.exists()) {
+								sourceRetentionPath.mkdirs();
+							}
+							log.info("Retention Directory " + sourceRetentionDir);
 						}
-						log.info("Retention Directory " + sourceRetentionDir);
 					}
 
 				} else {
@@ -249,7 +255,7 @@ public class FTPCollector {
 				f.connect(agentInfo.getHost());
 				f.login(agentInfo.getUser(), agentInfo.getPasswd());
 				f.enterLocalPassiveMode();
-				f.changeWorkingDirectory(agentInfo.getTargetPath()); 
+				f.changeWorkingDirectory(agentInfo.getTargetPath());
 				f.setFileType(FTP.BINARY_FILE_TYPE);
 
 				ftp = (FTPClient) f;
@@ -267,9 +273,11 @@ public class FTPCollector {
 		String fin = source.substring(source.lastIndexOf("/") + 1, source.length());
 
 		log.info("File Upload to " + agentInfo.toString());
-		if (getChannel(agentInfo) instanceof ChannelSftp) {
+		Object channel = getChannel(agentInfo);
 
-			ChannelSftp sftp = (ChannelSftp) getChannel(agentInfo);
+		if (channel instanceof ChannelSftp) {
+
+			ChannelSftp sftp = (ChannelSftp) channel;
 			sftp.cd(agentInfo.getTargetPath());
 			FileInputStream is = new FileInputStream(dataFile);
 			sftp.put(is, data.substring(data.lastIndexOf("/") + 1, data.length()));
@@ -279,8 +287,8 @@ public class FTPCollector {
 			sftp.put(is, fin);
 			is.close();
 			log.debug("Source " + source + " Agent " + agentInfo.getAgentName());
-		} else if (getChannel(agentInfo) instanceof FTPClient) {
-			FTPClient ftp = (FTPClient) getChannel(agentInfo);
+		} else if (channel instanceof FTPClient) {
+			FTPClient ftp = (FTPClient) channel;
 
 			FileInputStream fis = new FileInputStream(dataFile);
 			ftp.storeFile(dataFile.getName(), fis);
@@ -310,9 +318,11 @@ public class FTPCollector {
 			file = new File(source);
 			file.renameTo(new File(retainSourcePath, file.getName()));
 		} else if (sourceRetention.equals("delete")) {
-			File file = new File(source.substring(0, source.lastIndexOf(".")));
+			File file = new File(source.replace(sourceSuffix, copyFileSuffix));
+			log.debug("Delete " + file);
 			file.delete();
 			file = new File(source);
+			log.debug("Delete " + file);
 			file.delete();
 		}
 	}
@@ -347,9 +357,10 @@ public class FTPCollector {
 									// TODO Auto-generated catch block
 									idxKey++;
 									long waitTime = copyBackoff.sleepIncrement();
-									log.error(agentInfo.getAgentName() + " copy failed " + source
-											+ " So Attempt " + retries + " failed, backoff ("
-											+ waitTime + "ms): " + e.getMessage());
+									log.error("Copy failed " + agentInfo.getAgentName() + " and "
+											+ source + " So Attempt " + retries
+											+ " failed, backoff (" + waitTime + "ms): "
+											+ e.getMessage());
 
 									copyBackoff.backoff();
 
@@ -372,7 +383,6 @@ public class FTPCollector {
 									break;
 								}
 								if (copyBackoff.isFailed()) {
-									// 시스템 종
 									log.error("System have a problem so shutdown !");
 									System.exit(0);
 								}
@@ -380,9 +390,9 @@ public class FTPCollector {
 						} else {
 							sourceList.remove(source);
 						}
-
+						idxKey++;
 					}
-					idxKey++;
+
 				}
 
 				try {
@@ -424,16 +434,21 @@ public class FTPCollector {
 		String targetDir = getRetainSubdir(sourceRetentionPeriod);
 
 		log.debug("check Retain files " + sourceRetentionDir);
-		File[] fileList = sourceRetentionPath.listFiles();
+		File[] dirList = sourceRetentionPath.listFiles();
 
-		for (File file : fileList) {
-			if (file.getName().startsWith(targetDir)) {
-				if (file.delete()) {
-					log.info("Delete " + file.getName()
+		for (File dir : dirList) {
+			if (dir.getName().startsWith(targetDir)) {
+
+				File[] fileList = dir.listFiles();
+				for (File file : fileList) {
+					file.delete();
+				}
+
+				if (dir.delete()) {
+					log.info("Delete " + dir.getName()
 							+ " because it has over the retention time");
 				} else
-					log.info("Delete fail " + file.getName());
-
+					log.info("Delete fail " + dir.getName());
 			}
 		}
 	}

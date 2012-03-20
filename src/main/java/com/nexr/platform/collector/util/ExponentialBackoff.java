@@ -41,7 +41,7 @@ public class ExponentialBackoff implements BackoffPolicy {
 	 */
 	public void backoff() {
 		retryTime = Clock.unixTime() + sleepIncrement;
-		sleepIncrement *= 2;
+//		sleepIncrement *= 2;
 		backoffCount++;
 	}
 
