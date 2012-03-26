@@ -24,11 +24,15 @@ import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
 import com.jcraft.jsch.SftpException;
+import com.nexr.platform.collector.db.DatabaseUtil;
 import com.nexr.platform.collector.util.ExponentialBackoff;
 
 public class FTPCollector {
 
 	private static Logger log = Logger.getLogger(FTPCollector.class);
+
+	DatabaseUtil dbUtil = null;
+
 	private static final String SOURCE_DIR = "sourceDir";
 	private static final String SOURCE_SUFFIX = "sourceSuffix";
 	private static final String COPY_FILE_SUFFIX = "copyFileSuffix";
@@ -41,6 +45,14 @@ public class FTPCollector {
 
 	private static final String BACKOFF_CEILING = "backoff.ceiling";
 	private static final String BACKOFF_MAX = "backoff.max";
+
+	private static final String DATASERVER_INFO = "dataServerInfo";
+	private static final String CDR_LIST_TABLE = "cdr.list.table";
+	private static final String SENT_LIST_TABLE = "sent.list.table";
+
+	private static final String DB_URL = "mysql.url";
+	private static final String DB_USER = "mysql.user";
+	private static final String DB_PASSWORD = "mysql.password";
 
 	private String sourceSuffix = null;
 	private String copyFileSuffix = null;
@@ -55,6 +67,7 @@ public class FTPCollector {
 	SourceCheckThread sourceCheckThread;
 	CopyThread copyThread;
 	SourceRetainThread sourceRetainThread;
+	RetrieveFileThread retrieveFileThread;
 
 	long sourceCheckPeriod = 5000;
 	long copyPeriod = 5000;
@@ -67,10 +80,19 @@ public class FTPCollector {
 	long backoff_ceiling = 1000;
 	long backoff_max = 50;
 
+	AgentInfo dataServerInfo;
+	String cdrListTable;
+	String cdrSentTable;
+
+	String db_url;
+	String db_user;
+	String db_password;
+
 	static FTPCollector ftpCollector;
 
 	public static void main(String args[]) {
 		ftpCollector = new FTPCollector();
+
 		ftpCollector.init();
 		ftpCollector.start();
 
@@ -92,6 +114,7 @@ public class FTPCollector {
 	}
 
 	public void init() {
+
 		InputStream is = null;
 		try {
 			is = new FileInputStream(new File(getConfDir() + "/conf.properties"));
@@ -105,6 +128,7 @@ public class FTPCollector {
 
 			Enumeration<Object> enu = prop.keys();
 			while (enu.hasMoreElements()) {
+
 				String key = enu.nextElement().toString();
 				if (key.equals(SOURCE_DIR)) {
 					String source = prop.getProperty(key).trim();
@@ -154,7 +178,7 @@ public class FTPCollector {
 					if (prop.getProperty(key) != null
 							|| prop.getProperty(key).trim().length() > 0) {
 						sourceRetention = prop.getProperty(key).trim();
-						log.info("Retention policy " + sourceRetention);
+						log.info("Retention policy : " + sourceRetention);
 
 					}
 				} else if (key.equals(SOURCE_RETENTION_PERIOD)) {
@@ -162,23 +186,56 @@ public class FTPCollector {
 							|| prop.getProperty(key).trim().length() > 0) {
 						sourceRetentionPeriod = Integer.parseInt(prop.getProperty(key)
 								.trim());
-						// int var = sourceRetentionPeriod * 2;
-						// sourceRetentionPeriod = sourceRetentionPeriod - var;
+
 						log.info("Retention Period " + sourceRetentionPeriod);
 
+					}
+				} else if (key.equals(DATASERVER_INFO)) {
+					if (prop.getProperty(key) != null
+							|| prop.getProperty(key).trim().length() > 0) {
+						dataServerInfo = getAgentInfo(key, prop.getProperty(key));
+						log.info("DataServer : " + dataServerInfo.toString());
+					}
+				} else if (key.equals(CDR_LIST_TABLE)) {
+					if (prop.getProperty(key) != null
+							|| prop.getProperty(key).trim().length() > 0) {
+						cdrListTable = prop.getProperty(key).trim();
+						log.info("CDR list Table : " + cdrListTable);
+					}
+				} else if (key.equals(SENT_LIST_TABLE)) {
+					if (prop.getProperty(key) != null
+							|| prop.getProperty(key).trim().length() > 0) {
+						cdrSentTable = prop.getProperty(key).trim();
+						log.info("CDR Sent table : " + cdrSentTable);
+					}
+				} else if (key.equals(DB_URL)) {
+					if (prop.getProperty(key) != null
+							|| prop.getProperty(key).trim().length() > 0) {
+						db_url = prop.getProperty(key).trim();
+						log.info("Database URL : " + db_url);
+					}
+				} else if (key.equals(DB_USER)) {
+					if (prop.getProperty(key) != null
+							|| prop.getProperty(key).trim().length() > 0) {
+						db_user = prop.getProperty(key).trim();
+						log.info("Database User : " + db_user);
+					}
+				} else if (key.equals(DB_PASSWORD)) {
+					if (prop.getProperty(key) != null
+							|| prop.getProperty(key).trim().length() > 0) {
+						db_password = prop.getProperty(key).trim();
+						log.info("Database password " + db_password);
 					}
 				} else if (key.equals(SOURCE_RETENTION_DIR)) {
 					if (prop.getProperty(key) != null
 							|| prop.getProperty(key).trim().length() > 0) {
 						sourceRetentionDir = prop.getProperty(key).trim();
 
-						if (sourceRetention.equals("rename")) {
-							sourceRetentionPath = new File(sourceRetentionDir);
-							if (!sourceRetentionPath.exists()) {
-								sourceRetentionPath.mkdirs();
-							}
-							log.info("Retention Directory " + sourceRetentionDir);
+						sourceRetentionPath = new File(sourceRetentionDir);
+						if (!sourceRetentionPath.exists()) {
+							sourceRetentionPath.mkdirs();
 						}
+						log.info("Retention Directory " + sourceRetentionDir);
 					}
 
 				} else {
@@ -194,7 +251,11 @@ public class FTPCollector {
 			e.printStackTrace();
 		}
 
+		dbUtil = new DatabaseUtil(db_url, db_user, db_password, cdrListTable,
+				cdrSentTable);
+
 		copyBackoff = new ExponentialBackoff(backoff_ceiling, backoff_max);
+
 	}
 
 	public AgentInfo getAgentInfo(String key, String info) {
@@ -302,6 +363,9 @@ public class FTPCollector {
 		}
 
 		log.info(source + " Copy to " + agentInfo.getAgentName() + " Success");
+
+		dbUtil.insertSentToDB(dataFile.getName());
+
 		retain(sourceRetention, source);
 
 		sourceList.remove(source);
@@ -405,6 +469,8 @@ public class FTPCollector {
 		}
 	}
 
+	boolean isRetrieve = false;
+
 	public void checkSource() {
 		log.debug("check Source " + sourcePath);
 		File[] fileList = sourcePath.listFiles(new FileFilter() {
@@ -414,7 +480,8 @@ public class FTPCollector {
 				if (sourceSuffix == null) {
 					return true;
 				} else {
-					if (pathname.getAbsolutePath().endsWith(sourceSuffix)) {
+					if (pathname.getAbsolutePath().endsWith(sourceSuffix)
+							|| pathname.getAbsolutePath().endsWith(".LST")) {
 						return true;
 					}
 					return false;
@@ -424,7 +491,34 @@ public class FTPCollector {
 
 		for (File file : fileList) {
 			if (!sourceList.contains(file.getAbsolutePath())) {
-				sourceList.add(file.getAbsolutePath());
+
+				if (file.getName().endsWith(sourceSuffix)) {
+					sourceList.add(file.getAbsolutePath());
+				} else if (file.getName().endsWith(".LST")) {
+					if (!isRetrieve) {
+						isRetrieve = true;
+						File r = new File(file.getAbsolutePath() + ".TMP");
+						file.renameTo(r);
+						retrieveFileThread = new RetrieveFileThread(dataServerInfo,
+								sourcePath.getAbsolutePath(), dbUtil, r.getAbsolutePath(),
+								copyFileSuffix, sourceSuffix);
+						retrieveFileThread.start();
+						while (true) {
+							if (retrieveFileThread.isFinish()) {
+								isRetrieve = false;
+								break;
+							} else {
+								try {
+									Thread.sleep(5000);
+								} catch (InterruptedException e) {
+									// TODO Auto-generated catch block
+									e.printStackTrace();
+								}
+							}
+						}
+					}
+				}
+
 				log.debug("New file added " + file.getAbsolutePath());
 			}
 		}
@@ -433,7 +527,7 @@ public class FTPCollector {
 	public void sourceRetain() {
 		String targetDir = getRetainSubdir(sourceRetentionPeriod);
 
-		log.debug("check Retain files " + sourceRetentionDir);
+		log.info("check Retain files " + sourceRetentionDir);
 		File[] dirList = sourceRetentionPath.listFiles();
 
 		for (File dir : dirList) {

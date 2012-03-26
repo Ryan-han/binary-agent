@@ -54,33 +54,26 @@
 			<version>2.0</version>
 		</dependency>
 
-<!-- 
 		<dependency>
-			<groupId>org.apache.zookeeper</groupId>
-			<artifactId>zookeeper</artifactId>
-			<version>3.3.4</version>
-			<exclusions>
-				<exclusion>
-					<groupId>javax.jms</groupId>
-					<artifactId>jms</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>com.sun.jdmk</groupId>
-					<artifactId>jmxtools</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>com.sun.jmx</groupId>
-					<artifactId>jmxri</artifactId>
-				</exclusion>
-			</exclusions>
+			<groupId>mysql</groupId>
+			<artifactId>mysql-connector-java</artifactId>
+			<version>5.1.2</version>
+		</dependency>
+
+		<dependency>
+			<groupId>opensymphony</groupId>
+			<artifactId>quartz</artifactId>
+			<version>1.6.0</version>
+			<scope>compile</scope>
 		</dependency>
 
 
-		<dependency>
-			<groupId>ndap-coordinator</groupId>
-			<artifactId>ndap-coordinator</artifactId>
-			<version>${ndap.coordinator.version}</version>
-		</dependency>
- -->
+		<!-- <dependency> <groupId>org.apache.zookeeper</groupId> <artifactId>zookeeper</artifactId> 
+			<version>3.3.4</version> <exclusions> <exclusion> <groupId>javax.jms</groupId> 
+			<artifactId>jms</artifactId> </exclusion> <exclusion> <groupId>com.sun.jdmk</groupId> 
+			<artifactId>jmxtools</artifactId> </exclusion> <exclusion> <groupId>com.sun.jmx</groupId> 
+			<artifactId>jmxri</artifactId> </exclusion> </exclusions> </dependency> <dependency> 
+			<groupId>ndap-coordinator</groupId> <artifactId>ndap-coordinator</artifactId> 
+			<version>${ndap.coordinator.version}</version> </dependency> -->
 	</dependencies>
 </project>
