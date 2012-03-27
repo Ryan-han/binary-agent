@@ -7,6 +7,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketException;
+import java.sql.SQLException;
 import java.util.Calendar;
 import java.util.Enumeration;
 import java.util.List;
@@ -328,7 +329,7 @@ public class FTPCollector {
 	}
 
 	public void copyFiles(File dataFile, File finFile, String source,
-			AgentInfo agentInfo) throws SftpException, IOException, JSchException {
+			AgentInfo agentInfo) throws SftpException, IOException, JSchException, SQLException {
 		// .FIN이 없는 데이타 파일 복
 		String data = source.replace(sourceSuffix, copyFileSuffix);
 		String fin = source.substring(source.lastIndexOf("/") + 1, source.length());

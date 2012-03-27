@@ -5,7 +5,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -13,13 +12,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.List;
-import java.util.Properties;
 
 import org.apache.log4j.Logger;
-
-import com.nexr.platform.collector.sftp.AgentInfo;
 
 public class DatabaseUtil {
 	static Logger log = Logger.getLogger(DatabaseUtil.class);
@@ -134,7 +129,7 @@ public class DatabaseUtil {
 		return result;
 	}
 
-	public boolean insertSentToDB(String file) {
+	public boolean insertSentToDB(String file) throws SQLException {
 		boolean result = false;
 
 		log.info("FileName " + file);
@@ -147,7 +142,7 @@ public class DatabaseUtil {
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			con = null;
-			e.printStackTrace();
+			throw e;
 		}
 
 		return result;
